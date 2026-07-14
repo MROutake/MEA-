@@ -1,0 +1,31 @@
+{
+  "folders": [
+    { "name": "00 Workspace-Dokumentation", "path": "." },
+    { "name": "01 MEA Core", "path": "repositories/mea-core" },
+    { "name": "02 Analog Input Device", "path": "repositories/mea-device-analog-input" },
+    { "name": "03 Processing", "path": "repositories/mea-processing" },
+    { "name": "04 Communication", "path": "repositories/mea-communication" },
+    { "name": "05 Managers", "path": "repositories/mea-managers" },
+    { "name": "06 State Machine", "path": "repositories/mea-state-machine" },
+    { "name": "07 Demo Firmware", "path": "repositories/mea-demo-firmware" }
+  ],
+  "settings": {
+    "C_Cpp.default.cppStandard": "c++17",
+    "C_Cpp.errorSquiggles": "enabled",
+    "editor.formatOnSave": true,
+    "files.exclude": {
+      "**/.pio": true,
+      "**/.git": true
+    },
+    "search.exclude": {
+      "**/.pio": true
+    }
+  },
+  "extensions": {
+    "recommendations": [
+      "platformio.platformio-ide",
+      "ms-vscode.cpptools",
+      "eamodio.gitlens"
+    ]
+  }
+}

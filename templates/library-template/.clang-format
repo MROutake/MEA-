@@ -1,0 +1,12 @@
+# MEA-Workspace-Formatierung (identisch in allen Repositories)
+BasedOnStyle: Google
+Language: Cpp
+Standard: c++17
+IndentWidth: 4
+AccessModifierOffset: -4
+ColumnLimit: 90
+DerivePointerAlignment: false
+PointerAlignment: Left
+IncludeBlocks: Preserve
+SortIncludes: CaseSensitive
+AllowShortFunctionsOnASingleLine: Inline

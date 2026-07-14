@@ -1,0 +1,19 @@
+# MEA-Workspace clang-tidy (nutzbar mit compile_commands.json, z. B.
+# `pio run -t compiledb`; unter PlatformIO optional, cppcheck ist Pflicht).
+Checks: >
+  bugprone-*,
+  performance-*,
+  readability-*,
+  modernize-*,
+  cppcoreguidelines-*,
+  -modernize-use-trailing-return-type,
+  -readability-identifier-length,
+  -readability-magic-numbers,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+  -cppcoreguidelines-avoid-c-arrays,
+  -modernize-avoid-c-arrays,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  -cppcoreguidelines-pro-bounds-constant-array-index
+WarningsAsErrors: 'bugprone-*'
+HeaderFilterRegex: 'src/.*'
