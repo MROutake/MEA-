@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/platformio/platformio-core/develop/platformio/assets/schema/library.json",
+  "name": "MEA Communication",
+  "version": "0.1.0",
+  "description": "Kommunikations-Sinks fuer standardisierte MEA-Messwerte",
+  "keywords": ["arduino", "serial", "communication", "csv"],
+  "authors": [{ "name": "Theo Anders" }],
+  "license": "MIT",
+  "frameworks": "*",
+  "platforms": "*",
+  "headers": ["MeaCommunication.h"]
+}

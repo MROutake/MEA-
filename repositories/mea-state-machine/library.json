@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/platformio/platformio-core/develop/platformio/assets/schema/library.json",
+  "name": "MEA State Machine",
+  "version": "0.1.0",
+  "description": "Nicht blockierende Zustandsmaschinen fuer MEA-Pipelines",
+  "keywords": ["embedded", "state-machine", "non-blocking", "pipeline"],
+  "authors": [{ "name": "Theo Anders" }],
+  "license": "MIT",
+  "frameworks": "*",
+  "platforms": "*",
+  "headers": ["MeaStateMachine.h"]
+}

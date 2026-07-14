@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/platformio/platformio-core/develop/platformio/assets/schema/library.json",
+  "name": "MEA Processing",
+  "version": "0.1.0",
+  "description": "Hardwareunabhaengige Messwertverarbeitung fuer MEA",
+  "keywords": ["embedded", "processing", "filter", "measurement"],
+  "authors": [{ "name": "Theo Anders" }],
+  "license": "MIT",
+  "frameworks": "*",
+  "platforms": "*",
+  "headers": ["MeaProcessing.h"]
+}

@@ -1,0 +1,32 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "MEA: Native Tests",
+      "type": "shell",
+      "command": "pio test -e native",
+      "group": "test",
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "MEA: Build ESP32",
+      "type": "shell",
+      "command": "pio run -e esp32dev",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "MEA: Upload ESP32",
+      "type": "shell",
+      "command": "pio run -e esp32dev -t upload",
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "MEA: Serial Monitor",
+      "type": "shell",
+      "command": "pio device monitor -b 115200",
+      "isBackground": true,
+      "problemMatcher": []
+    }
+  ]
+}

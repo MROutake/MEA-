@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/platformio/platformio-core/develop/platformio/assets/schema/library.json",
+  "name": "MEA Managers",
+  "version": "0.1.0",
+  "description": "Statische Registries fuer MEA-Komponenten",
+  "keywords": ["embedded", "manager", "registry", "static-allocation"],
+  "authors": [{ "name": "Theo Anders" }],
+  "license": "MIT",
+  "frameworks": "*",
+  "platforms": "*",
+  "headers": ["MeaManagers.h"]
+}

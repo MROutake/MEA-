@@ -2,9 +2,9 @@
 
 ## Ein Repository pro Library
 
-Jede Library und die Firmware besitzen ein eigenes Repository. Der Workspace-Ordner kann zusätzlich als Meta-Repository für Dokumentation, Skripte und Vorlagen versioniert werden.
+Jede Library und die Firmware besitzen ein eigenes Repository. Der Workspace-Ordner wird zusätzlich als Meta-Repository für Dokumentation, Skripte, Vorlagen und einen Quellcode-Snapshot der enthaltenen Repositories versioniert.
 
-Wichtig: `repositories/` bleibt im Workspace-Meta-Repository ignoriert. Dadurch gibt es keine verschachtelte Versionsverwaltung im Root-Repo und jedes Modul kann separat getaggt und veröffentlicht werden.
+Wichtig: Die inneren `.git`-Ordner der einzelnen Repositories werden nicht im Workspace-Meta-Repository versioniert. Auf GitHub erscheinen die Projekte dadurch als normale Ordner mit Quellcode; lokal können sie trotzdem weiterhin separat getaggt und veröffentlicht werden.
 
 ## Gitea/Forgejo automatisch einrichten
 

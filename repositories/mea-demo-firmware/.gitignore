@@ -1,0 +1,12 @@
+.pio/
+.vscode/.browse.c_cpp.db*
+.vscode/ipch/
+compile_commands.json
+*.o
+*.a
+*.elf
+*.bin
+*.hex
+.DS_Store
+
+.vscode/c_cpp_properties.json

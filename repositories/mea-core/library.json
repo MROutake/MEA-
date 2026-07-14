@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/platformio/platformio-core/develop/platformio/assets/schema/library.json",
+  "name": "MEA Core",
+  "version": "0.1.0",
+  "description": "Hardware-unabhaengige Interfaces und Datentypen fuer Modular Embedded Architecture",
+  "keywords": ["embedded", "interfaces", "measurement", "architecture"],
+  "authors": [{ "name": "Theo Anders" }],
+  "license": "MIT",
+  "frameworks": "*",
+  "platforms": "*",
+  "headers": ["MeaCore.h"]
+}
