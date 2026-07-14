@@ -3,7 +3,7 @@
 /// @file Status.h
 /// @brief Status- und Fehlermodell (ADR 0002): Statuscode + Herkunft + Detail.
 
-#include <cstdint>
+#include <stdint.h>
 
 #include "Types.h"
 
@@ -11,7 +11,7 @@ namespace mea {
 
 /// Ergebniscode einer Operation. Der Operationsstatus ist unabhängig von der
 /// Qualität transportierter Messdaten (siehe Measurement::quality, ADR 0003).
-enum class StatusCode : std::uint8_t {
+enum class StatusCode : uint8_t {
     Ok = 0,
     Busy,
     NoData,
@@ -38,7 +38,7 @@ struct Status {
     /// Komponente, die den Fehler meldet (InvalidComponentId, wenn unbekannt).
     ComponentId origin{InvalidComponentId};
     /// Geräte- oder protokollspezifische Zusatzinformation.
-    std::uint16_t detail{0};
+    uint16_t detail{0};
 
     [[nodiscard]] constexpr bool ok() const noexcept { return code == StatusCode::Ok; }
 
@@ -51,7 +51,7 @@ struct Status {
 
 /// Erzeugt einen Status mit Herkunft.
 [[nodiscard]] constexpr Status makeStatus(const StatusCode code, const ComponentId origin,
-                                          const std::uint16_t detail = 0) noexcept {
+                                          const uint16_t detail = 0) noexcept {
     return Status{code, origin, detail};
 }
 

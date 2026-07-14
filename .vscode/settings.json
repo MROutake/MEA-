@@ -1,0 +1,24 @@
+{
+  "C_Cpp.default.cStandard": "gnu11",
+  "C_Cpp.default.cppStandard": "gnu++17",
+  "C_Cpp.default.compilerPath": "C:/Users/t.anders/.platformio/packages/toolchain-atmelavr/bin/avr-g++.exe",
+  "C_Cpp.default.defines": [
+    "PLATFORMIO=60119",
+    "ARDUINO_AVR_UNO",
+    "ARDUINO_ARCH_AVR",
+    "ARDUINO=10808",
+    "F_CPU=16000000L"
+  ],
+  "C_Cpp.default.includePath": [
+    "${workspaceFolder}/repositories/mea-device-74hc595/include",
+    "${workspaceFolder}/repositories/mea-device-74hc595/src",
+    "${workspaceFolder}/repositories/mea-core/src",
+    "${workspaceFolder}/repositories/mea-output/include",
+    "C:/Users/t.anders/.platformio/packages/framework-arduino-avr/cores/arduino",
+    "C:/Users/t.anders/.platformio/packages/framework-arduino-avr/variants/standard",
+    "C:/Users/t.anders/.platformio/packages/toolchain-atmelavr/avr/include"
+  ],
+  "files.exclude": {
+    "**/.pio": true
+  }
+}

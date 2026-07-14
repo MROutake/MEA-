@@ -1,0 +1,15 @@
+{
+  "$schema": "https://raw.githubusercontent.com/platformio/platformio-core/develop/platformio/assets/schema/library.json",
+  "name": "mea-device-74hc595",
+  "version": "0.1.0",
+  "description": "A library for controlling 74HC595 shift registers.",
+  "authors": [{ "name": "Theo Anders" }],
+  "license": "MIT",
+  "frameworks": "*",
+  "platforms": "*",
+  "headers": ["mea-device-74hc595.h"],
+  "dependencies": {
+    "mea-core": "*",
+    "mea-output": "*"
+  }
+}

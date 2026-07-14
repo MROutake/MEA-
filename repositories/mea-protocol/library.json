@@ -1,0 +1,15 @@
+{
+  "$schema": "https://raw.githubusercontent.com/platformio/platformio-core/develop/platformio/assets/schema/library.json",
+  "name": "MEA Protocol",
+  "version": "0.1.0",
+  "description": "Transport-unabhaengiges binaeres Netzwerkprotokoll fuer MEA (Envelope, Codec, Validator, Registry)",
+  "keywords": ["embedded", "protocol", "serialization", "network", "crc"],
+  "authors": [{ "name": "Theo Anders" }],
+  "license": "MIT",
+  "frameworks": "*",
+  "platforms": "*",
+  "headers": ["MeaProtocol.h"],
+  "dependencies": {
+    "mea-core": "*"
+  }
+}

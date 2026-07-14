@@ -1,0 +1,16 @@
+{
+  "$schema": "https://raw.githubusercontent.com/platformio/platformio-core/develop/platformio/assets/schema/library.json",
+  "name": "MEA Network WS500",
+  "version": "0.1.0",
+  "description": "WS500-Transportadapter (INetworkTransport) fuer den MEA-Netzwerk-Stack",
+  "keywords": ["embedded", "network", "ws500", "transport", "ethernet"],
+  "authors": [{ "name": "Theo Anders" }],
+  "license": "MIT",
+  "frameworks": "*",
+  "platforms": "*",
+  "headers": ["MeaNetworkWs500.h"],
+  "dependencies": {
+    "mea-core": "*",
+    "mea-network-core": "*"
+  }
+}

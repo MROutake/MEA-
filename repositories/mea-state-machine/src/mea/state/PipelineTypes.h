@@ -40,6 +40,26 @@ struct PipelineConfig {
     bool startImmediately{true};
 };
 
+/// Hilfsfunktion fuer konsistente Pipeline-Konfiguration im Composition Root.
+[[nodiscard]] constexpr PipelineConfig makePipelineConfig(
+    const ComponentId pipelineId, const ComponentId sourceId,
+    const ArrayView<const ComponentId> processorIds,
+    const ArrayView<const ComponentId> sinkIds, const TimestampMs cycleIntervalMs,
+    const TimestampMs acquisitionTimeoutMs, const TimestampMs publishTimeoutMs,
+    const RetryPolicy retry = {}, const bool startImmediately = true) noexcept {
+    PipelineConfig config{};
+    config.pipelineId = pipelineId;
+    config.sourceId = sourceId;
+    config.processorIds = processorIds;
+    config.sinkIds = sinkIds;
+    config.cycleIntervalMs = cycleIntervalMs;
+    config.acquisitionTimeoutMs = acquisitionTimeoutMs;
+    config.publishTimeoutMs = publishTimeoutMs;
+    config.retry = retry;
+    config.startImmediately = startImmediately;
+    return config;
+}
+
 /// Zustände der Pipeline-Maschine.
 enum class PipelineState : std::uint8_t {
     Uninitialized = 0,

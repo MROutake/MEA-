@@ -1,0 +1,16 @@
+{
+  "$schema": "https://raw.githubusercontent.com/platformio/platformio-core/develop/platformio/assets/schema/library.json",
+  "name": "MEA Network Core",
+  "version": "0.1.0",
+  "description": "Transport-neutraler Netzwerk-Stack fuer MEA: Transport-Interface, Session, ProtocolBridge",
+  "keywords": ["embedded", "network", "session", "reconnect", "non-blocking"],
+  "authors": [{ "name": "Theo Anders" }],
+  "license": "MIT",
+  "frameworks": "*",
+  "platforms": "*",
+  "headers": ["MeaNetworkCore.h"],
+  "dependencies": {
+    "mea-core": "*",
+    "mea-protocol": "*"
+  }
+}

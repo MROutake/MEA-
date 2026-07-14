@@ -7,7 +7,9 @@
     { "name": "04 Communication", "path": "repositories/mea-communication" },
     { "name": "05 Managers", "path": "repositories/mea-managers" },
     { "name": "06 State Machine", "path": "repositories/mea-state-machine" },
-    { "name": "07 Demo Firmware", "path": "repositories/mea-demo-firmware" }
+    { "name": "07 Demo Firmware", "path": "repositories/mea-demo-firmware" },
+    { "name": "08 Output", "path": "repositories/mea-output" },
+    { "name": "09 74HC595 Device", "path": "repositories/mea-device-74hc595" }
   ],
   "settings": {
     "C_Cpp.default.cppStandard": "c++17",

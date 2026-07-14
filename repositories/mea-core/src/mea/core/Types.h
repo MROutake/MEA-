@@ -4,19 +4,19 @@
 /// @brief Grundtypen der MEA-Plattform: IDs, Zeitstempel, rollover-sichere
 /// Zeitvergleiche.
 
-#include <cstdint>
+#include <stdint.h>
 
 namespace mea {
 
 /// Eindeutige Kennung einer Komponente. ID 0 ist ungültig und reserviert.
-using ComponentId = std::uint16_t;
+using ComponentId = uint16_t;
 
 /// Millisekunden-Zeitstempel (z. B. millis()). Läuft nach ~49,7 Tagen über;
 /// alle Vergleiche müssen über elapsedMs()/intervalElapsed() erfolgen.
-using TimestampMs = std::uint32_t;
+using TimestampMs = uint32_t;
 
 /// Monoton steigende Sequenznummer je Messquelle. Überlauf ist erlaubt.
-using SequenceNumber = std::uint32_t;
+using SequenceNumber = uint32_t;
 
 /// Reservierte, ungültige Komponenten-ID.
 constexpr ComponentId InvalidComponentId = 0;
