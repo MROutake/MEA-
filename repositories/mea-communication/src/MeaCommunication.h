@@ -14,4 +14,5 @@
 #include "mea/communication/IByteTransport.h"
 #include "mea/communication/IMeasurementEncoder.h"
 #include "mea/communication/LineCommandDecoder.h"
+#include "mea/communication/TextMeasurementEncoder.h"
 #include "mea/communication/Version.h"

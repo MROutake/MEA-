@@ -1,88 +1,59 @@
 # MEA Core
 
-`mea-core` ist die gemeinsame Sprache der MEA-Plattform. Diese Library enthaelt
-keine Arduino-Abhaengigkeit und kann nativ auf dem Entwicklungs-PC getestet
-werden.
+`mea-core` ist die stabile gemeinsame Sprache der MEA-Plattform. Diese Library
+bleibt hardwarefrei und darf von keinem anderen MEA-Repo abhaengen.
 
-## Wofuer diese Library gedacht ist
+Dieses README beschreibt den Zielstand nach dem Umbauplan:
+[../../docs/08-UMBAUPLAN-MODULARE-EINHEIT.md](../../docs/08-UMBAUPLAN-MODULARE-EINHEIT.md).
 
-Nutze `mea-core`, wenn du:
-
-- eine neue MEA-kompatible Library schreiben willst,
-- gemeinsame Messwert-, Status- oder ID-Typen brauchst,
-- Komponenten ueber stabile Interfaces koppeln willst,
-- Tests ohne Hardware bauen willst.
-
-Alle anderen MEA-Libraries haengen von `mea-core` ab.
+## Rolle im Gesamtsystem
 
 ```mermaid
 flowchart TD
     Core[mea-core]
-    Device[mea-device-analog-input]
-    Processing[mea-processing]
-    Communication[mea-communication]
     Managers[mea-managers]
     State[mea-state-machine]
+    Runtime[mea-runtime]
+    Processing[mea-processing]
+    Devices[mea-device-*]
+    Communication[mea-communication / mea-espnow]
     Demo[mea-demo-firmware]
 
-    Device --> Core
-    Processing --> Core
-    Communication --> Core
     Managers --> Core
     State --> Core
+    Runtime --> Core
+    Processing --> Core
+    Devices --> Core
+    Communication --> Core
     Demo --> Core
 ```
 
-## Zentrale Dateien
+`mea-core` definiert Vertraege, keine Implementierungsstrategie fuer ein
+konkretes Board.
 
-| Datei | Rolle |
+## Oeffentliche Bausteine
+
+| Datei | Verantwortung |
 |---|---|
-| [src/MeaCore.h](src/MeaCore.h) | Sammel-Header fuer Nutzer der Library |
-| [src/mea/core/Types.h](src/mea/core/Types.h) | `ComponentId`, `TimestampMs`, rollover-sichere Zeitfunktionen |
-| [src/mea/core/Status.h](src/mea/core/Status.h) | Status- und Fehlermodell mit `origin` und `detail` |
-| [src/mea/core/Measurement.h](src/mea/core/Measurement.h) | Messwertmodell mit `MeasurementKind`, `Unit`, `QualityFlag` |
-| [src/mea/core/Interfaces.h](src/mea/core/Interfaces.h) | Source-, Processor-, Sink- und Locator-Interfaces |
+| [src/MeaCore.h](src/MeaCore.h) | Sammel-Header |
+| [src/mea/core/Types.h](src/mea/core/Types.h) | `ComponentId`, `TimestampMs`, Sequenzen, Zeithelfer |
+| [src/mea/core/Status.h](src/mea/core/Status.h) | `StatusCode`, `Status`, Fehlerherkunft |
+| [src/mea/core/Measurement.h](src/mea/core/Measurement.h) | Messwertformat, Art, Einheit, Quality-Flags |
+| [src/mea/core/Interfaces.h](src/mea/core/Interfaces.h) | `IDevice`, Source, Processor, Sink, Locator |
 | [src/mea/core/Command.h](src/mea/core/Command.h) | Basistypen fuer eingehende Kommandos |
-| [src/mea/core/RingBuffer.h](src/mea/core/RingBuffer.h) | fester Ringpuffer ohne Heap |
-| [src/mea/core/ArrayView.h](src/mea/core/ArrayView.h) | nicht besitzender Array-View fuer C++17 |
-| [src/mea/core/Health.h](src/mea/core/Health.h) | Diagnosemodell fuer Manager |
-| [src/mea/testing/ContractChecks.h](src/mea/testing/ContractChecks.h) | wiederverwendbare Interface-Contract-Checks fuer Tests |
+| [src/mea/core/RingBuffer.h](src/mea/core/RingBuffer.h) | statischer Ringpuffer ohne Heap |
+| [src/mea/core/ArrayView.h](src/mea/core/ArrayView.h) | nicht besitzende Sicht auf Konfigurationsarrays |
+| [src/mea/core/Health.h](src/mea/core/Health.h) | Diagnosemodell fuer Manager und Runtime |
+| [src/mea/testing/ContractChecks.h](src/mea/testing/ContractChecks.h) | wiederverwendbare Contract-Checks |
 
-## Datenmodell
-
-```mermaid
-classDiagram
-    class Measurement {
-        ComponentId sourceId
-        MeasurementKind kind
-        Unit unit
-        float value
-        TimestampMs sampledAtMs
-        SequenceNumber sequence
-        QualityFlag quality
-    }
-    class Status {
-        StatusCode code
-        ComponentId origin
-        uint16_t detail
-        ok()
-        transient()
-    }
-```
-
-`Status` und `Measurement::quality` sind bewusst getrennt:
-
-- `Status` beschreibt, ob eine Operation funktioniert hat.
-- `quality` beschreibt, ob der transportierte Wert fachlich eingeschraenkt ist.
-
-Beispiel: Ein Clamp-Prozessor kann `Status::Ok` zurueckgeben und gleichzeitig
-`QualityFlag::OutOfRange` setzen, weil die Verarbeitung technisch erfolgreich
-war, der Wert aber begrenzt werden musste.
-
-## Interfaces
+## Interface-Vertrag
 
 ```mermaid
 classDiagram
+    class IDevice {
+        begin()
+        update(nowMs)
+    }
     class IMeasurementSource {
         id()
         begin()
@@ -103,41 +74,32 @@ classDiagram
         capacityAvailable()
         submit(measurement)
     }
-    class IComponentLocator {
-        find(id)
-        size()
-    }
 ```
 
-Die Interfaces halten die Libraries lose gekoppelt. Ein Sensor kennt keinen
-Manager, ein Prozessor kennt keine Hardware, und die State Machine findet
-Komponenten nur ueber `IComponentLocator`.
+Regeln:
 
-## Minimalbeispiel
+- Quellen liefern Messwerte ueber `available()` und `read()`.
+- Prozessoren veraendern die Eingabe nicht, sondern schreiben in `output`.
+- Sinks uebernehmen Messwerte per `submit()`.
+- Devices sind geteilte Dienste wie I2C-Chips, Transporte oder Funk-Clients.
 
-```cpp
-#include <MeaCore.h>
+## Status und Messwertqualitaet
 
-mea::Measurement m{};
-m.sourceId = 100;
-m.kind = mea::MeasurementKind::Voltage;
-m.unit = mea::Unit::Volt;
-m.value = 1.65F;
-m.sampledAtMs = 1234;
-m.sequence = 1;
+`Status` und `Measurement::quality` bleiben getrennt:
 
-if (mea::isValid(m)) {
-    // Wert kann weiterverarbeitet werden.
-}
-```
+- `Status` sagt, ob eine Operation erfolgreich war.
+- `quality` sagt, ob ein transportierter Messwert fachlich markiert ist.
 
-## Regeln fuer neue Libraries
+Beispiel: Ein Clamp-Prozessor kann `StatusCode::Ok` liefern und gleichzeitig
+`QualityFlag::OutOfRange` setzen.
 
-- Oeffentliche Komponenten implementieren eines der MEA-Interfaces.
-- IDs duerfen nie `mea::InvalidComponentId` sein.
-- Fehlbare Funktionen liefern `mea::Status`.
-- Keine dynamischen Fehlertexte; fuer Logging `statusCodeName()` nutzen.
-- `update(nowMs)` muss kurz bleiben und darf nicht blockieren.
+## Regeln fuer Erweiterungen
+
+1. Neue Statuscodes nur anhaengen, nicht umnummerieren.
+2. Neue `MeasurementKind`/`Unit`-Werte nur anhaengen.
+3. Keine Arduino-, ESP32- oder Projekt-Header einbinden.
+4. Keine globalen Singletons.
+5. Keine dynamische Allokation als Besitzmodell.
 
 ## Testen
 
@@ -145,10 +107,4 @@ if (mea::isValid(m)) {
 pio test -e native
 ```
 
-Die native Umgebung nutzt C++17, strikte Warnungen und Sanitizer.
-
-## Design-Referenzen
-
-- [../../docs/adr/0001-memory-and-ownership.md](../../docs/adr/0001-memory-and-ownership.md)
-- [../../docs/adr/0002-status-and-error-model.md](../../docs/adr/0002-status-and-error-model.md)
-- [../../docs/adr/0003-measurement-format.md](../../docs/adr/0003-measurement-format.md)
+Die native Umgebung ist der Vertragstest fuer alle nachgelagerten Repos.

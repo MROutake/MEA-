@@ -14,6 +14,8 @@
 namespace mea {
 
 /// Physikalische bzw. logische Art eines Messwerts.
+/// Erweiterung nur durch Anhaengen neuer Werte (ADR 0003): Die numerischen
+/// Codes sind Teil des CSV-Protokolls und duerfen sich nicht verschieben.
 enum class MeasurementKind : std::uint8_t {
     Unknown = 0,
     RawAnalog,
@@ -24,10 +26,12 @@ enum class MeasurementKind : std::uint8_t {
     Humidity,
     Pressure,
     Frequency,
-    DigitalState
+    DigitalState,
+    SoilMoisture
 };
 
 /// Einheit eines Messwerts.
+/// Erweiterung nur durch Anhaengen neuer Werte (ADR 0003, siehe MeasurementKind).
 enum class Unit : std::uint8_t {
     None = 0,
     RawCount,
@@ -40,7 +44,8 @@ enum class Unit : std::uint8_t {
     Percent,
     Pascal,
     Hertz,
-    Boolean
+    Boolean,
+    Hectopascal
 };
 
 /// Qualitätsflags als Bitmaske. QualityFlag::None bedeutet uneingeschränkte Qualität.
@@ -88,6 +93,89 @@ struct Measurement {
     SequenceNumber sequence{0};
     QualityFlag quality{QualityFlag::None};
 };
+
+/// Menschlich lesbarer Name einer Messwertart (statisches Stringliteral).
+[[nodiscard]] constexpr const char* measurementKindName(
+    const MeasurementKind kind) noexcept {
+    switch (kind) {
+        case MeasurementKind::Unknown:
+            return "Unknown";
+        case MeasurementKind::RawAnalog:
+            return "RawAnalog";
+        case MeasurementKind::Voltage:
+            return "Voltage";
+        case MeasurementKind::Current:
+            return "Current";
+        case MeasurementKind::Resistance:
+            return "Resistance";
+        case MeasurementKind::Temperature:
+            return "Temperature";
+        case MeasurementKind::Humidity:
+            return "Humidity";
+        case MeasurementKind::Pressure:
+            return "Pressure";
+        case MeasurementKind::Frequency:
+            return "Frequency";
+        case MeasurementKind::DigitalState:
+            return "DigitalState";
+        case MeasurementKind::SoilMoisture:
+            return "SoilMoisture";
+    }
+    return "Unknown";
+}
+
+/// Kurzes Einheitensymbol (statisches Stringliteral; "" für Unit::None).
+[[nodiscard]] constexpr const char* unitSymbol(const Unit unit) noexcept {
+    switch (unit) {
+        case Unit::None:
+            return "";
+        case Unit::RawCount:
+            return "raw";
+        case Unit::Volt:
+            return "V";
+        case Unit::MilliVolt:
+            return "mV";
+        case Unit::Ampere:
+            return "A";
+        case Unit::MilliAmpere:
+            return "mA";
+        case Unit::Ohm:
+            return "Ohm";
+        case Unit::DegreeCelsius:
+            return "degC";
+        case Unit::Percent:
+            return "%";
+        case Unit::Pascal:
+            return "Pa";
+        case Unit::Hertz:
+            return "Hz";
+        case Unit::Boolean:
+            return "bool";
+        case Unit::Hectopascal:
+            return "hPa";
+    }
+    return "";
+}
+
+/// Name eines EINZELNEN Qualitätsflags (statisches Stringliteral); für
+/// Bitmasken die Flags einzeln prüfen (hasFlag).
+[[nodiscard]] constexpr const char* qualityFlagName(const QualityFlag flag) noexcept {
+    switch (flag) {
+        case QualityFlag::None:
+            return "None";
+        case QualityFlag::Stale:
+            return "Stale";
+        case QualityFlag::OutOfRange:
+            return "OutOfRange";
+        case QualityFlag::Estimated:
+            return "Estimated";
+        case QualityFlag::SensorFault:
+            return "SensorFault";
+        case QualityFlag::CommunicationFault:
+            return "CommunicationFault";
+    }
+    return "Unknown";
+}
 
 /// True, wenn die Quelle gültig und der Wert endlich ist.
 [[nodiscard]] inline bool isValid(const Measurement& measurement) noexcept {

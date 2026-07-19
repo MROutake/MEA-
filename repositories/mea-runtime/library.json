@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/platformio/platformio-core/develop/platformio/assets/schema/library.json",
+  "name": "MEA Runtime",
+  "version": "0.1.0",
+  "description": "Runtime-Fassade: verdrahtet Geraete, Quellen, Prozessoren, Sinks und Pipelines ohne Boilerplate (ADR 0007)",
+  "keywords": ["embedded", "runtime", "pipeline", "composition", "measurement"],
+  "authors": [{ "name": "Theo Anders" }],
+  "license": "MIT",
+  "frameworks": "*",
+  "platforms": "*",
+  "headers": ["MeaRuntime.h"]
+}

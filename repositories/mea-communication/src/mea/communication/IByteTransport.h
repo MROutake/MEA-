@@ -2,8 +2,8 @@
 
 /// @file IByteTransport.h
 /// @brief Nicht blockierender Byte-Transport (ADR 0006, Schicht 1).
-///        Lebenszyklus: Der Composition Root ruft begin() und update() des
-///        Transports auf; Sinks/Decoder benutzen ihn nur.
+///        Lebenszyklus (begin/update aus IDevice): Composition Root oder
+///        Runtime rufen begin() und update() auf; Sinks/Decoder benutzen ihn nur.
 
 #include <cstddef>
 #include <cstdint>
@@ -12,12 +12,8 @@
 
 namespace mea {
 
-class IByteTransport {
+class IByteTransport : public IDevice {
 public:
-    virtual ~IByteTransport() = default;
-
-    virtual Status begin() noexcept = 0;
-    virtual Status update(TimestampMs nowMs) noexcept = 0;
 
     /// Anzahl Bytes, die write() aktuell ohne Blockieren annimmt (darf 0 sein).
     [[nodiscard]] virtual std::size_t writable() const noexcept = 0;

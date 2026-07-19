@@ -35,8 +35,18 @@ public:
                                const ISinkLocator& sinks,
                                const PipelineConfig& config) noexcept;
 
+    /// Unkonfigurierte Maschine (für Runtime-Fassaden, die Pipelines in
+    /// fester Kapazität vorhalten): vor begin() muss configure() erfolgen.
+    MeasurementPipelineMachine() noexcept = default;
+
+    /// Setzt Locators und Konfiguration nachträglich (reinitialisierend:
+    /// die Maschine fällt auf Uninitialized zurück; Zähler laufen weiter).
+    Status configure(const ISourceLocator& sources, const IProcessorLocator& processors,
+                     const ISinkLocator& sinks, const PipelineConfig& config) noexcept;
+
     /// Validiert die Konfiguration und löst alle IDs auf. Reinitialisierend:
     /// bricht einen laufenden Zyklus ab; Zähler laufen weiter (ADR 0004).
+    /// NotInitialized, wenn die Maschine noch nicht konfiguriert wurde.
     Status begin(TimestampMs nowMs) noexcept;
 
     /// Treibt die Maschine an; nicht blockierend, begrenzte Arbeit pro Aufruf.
@@ -82,10 +92,12 @@ private:
     Status failCycle(Status status, TimestampMs nowMs, RetryStage stage) noexcept;
     void abandonCycle() noexcept;
 
-    const ISourceLocator& sources_;
-    const IProcessorLocator& processors_;
-    const ISinkLocator& sinks_;
-    PipelineConfig config_;
+    // Locators als Zeiger, damit die Maschine default-konstruierbar bleibt;
+    // nullptr = noch nicht konfiguriert (nicht besitzend, ADR 0001).
+    const ISourceLocator* sources_{nullptr};
+    const IProcessorLocator* processors_{nullptr};
+    const ISinkLocator* sinks_{nullptr};
+    PipelineConfig config_{};
 
     IMeasurementSource* source_{nullptr};
     IMeasurementProcessor* processors_cache_[kMaxProcessors]{};

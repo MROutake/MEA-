@@ -12,6 +12,19 @@
 
 namespace mea {
 
+/// Gerät oder Dienst mit eigenem Lebenszyklus, das VOR den davon abhängigen
+/// Komponenten initialisiert werden muss: geteilte Mehrkanal-Chips (z. B.
+/// AHT20/BMP280-Device), Byte-Transporte oder andere Infrastruktur.
+/// Eine Runtime (mea-runtime) initialisiert registrierte Geräte zuerst und
+/// treibt sie zyklisch an; update() blockiert nie (ADR 0004).
+class IDevice {
+public:
+    virtual ~IDevice() = default;
+
+    virtual Status begin() noexcept = 0;
+    virtual Status update(TimestampMs nowMs) noexcept = 0;
+};
+
 /// Quelle von Messwerten (z. B. Sensor).
 /// - update() blockiert nicht und leistet pro Aufruf nur begrenzte Arbeit.
 /// - available() nennt die Anzahl auslesbarer Messwerte.

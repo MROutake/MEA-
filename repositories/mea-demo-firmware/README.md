@@ -1,253 +1,213 @@
 # MEA Demo Firmware
 
-`mea-demo-firmware` ist die Referenzanwendung fuer den MEA-Workspace. Dieses
-Repository zeigt, wie die einzelnen Libraries in einer echten PlatformIO-
-Firmware zusammengesetzt werden.
+`mea-demo-firmware` ist der Composition Root der MEA-Plattform. Dieses Repo
+zeigt im Zielstand, wie alle Libraries als eine logische Einheit auf einem
+ESP32 zusammenspielen.
 
-Die Demo laeuft auf `esp32dev`, liest GPIO 34 als ADC, rechnet den Rohwert in
-Volt um, begrenzt den Wert auf den erlaubten Bereich und gibt CSV ueber Serial
-aus.
+Zielstand nach Umbauplan:
+[../../docs/08-UMBAUPLAN-MODULARE-EINHEIT.md](../../docs/08-UMBAUPLAN-MODULARE-EINHEIT.md).
 
-## Systemrolle
+## Rolle im Zielsystem
 
-Dieses Repo ist der **Composition Root**. Nur hier werden konkrete Hardware,
-Pins, IDs, Prozessorreihenfolge, Sinks und Pipeline-Parameter zusammengefuehrt.
-Die Libraries bleiben dadurch wiederverwendbar und kennen weder Board noch
-Anwendung.
+Nur dieses Repo kennt konkrete Hardware:
+
+- Board und Pins,
+- App-IDs,
+- Sensorbestueckung,
+- Pipeline-Profile,
+- serielle Ausgabe oder ESP-NOW,
+- PlatformIO-Umgebungen.
+
+Alle wiederverwendbaren Bausteine bleiben in den Libraries.
 
 ```mermaid
 flowchart TD
     Main[src/main.cpp<br/>setup/loop]
-    App[src/Application.cpp<br/>Objekte und Verdrahtung]
-    Board[include/BoardConfig.h<br/>Pin, ADC, Baudrate]
-    Config[include/AppConfig.h<br/>Timing, Puffer, Retry]
-    Ids[include/AppIds.h<br/>Komponenten-IDs]
-    Core[mea-core]
-    Device[mea-device-analog-input]
-    Processing[mea-processing]
-    Communication[mea-communication]
-    Managers[mea-managers]
-    State[mea-state-machine]
+    App[src/Application.cpp<br/>Profil auswaehlen]
+    Profile[include/profiles/*.h<br/>Objekte + Verdrahtung]
+    Node[mea-runtime<br/>MeasurementNode]
+    Libs[MEA Libraries]
 
-    Main --> App
-    Board --> App
-    Config --> App
-    Ids --> App
-    App --> Core
-    App --> Device
-    App --> Processing
-    App --> Communication
-    App --> Managers
-    App --> State
+    Main --> App --> Profile --> Node --> Libs
 ```
 
-## Datenfluss
+## Zielstruktur
+
+```text
+include/
+  AppIds.h
+  BoardConfig.h
+  profiles/
+    AnalogSerialProfile.h
+    I2cSerialProfile.h
+    EspNowClientProfile.h
+    EspNowServerProfile.h
+src/
+  Application.cpp
+  Application.h
+  main.cpp
+test/
+  native/
+  embedded/
+```
+
+`Application` soll nur noch Profil und Runtime treiben. Manuelle Manager- und
+`MeasurementPipelineMachine`-Verdrahtung sollen aus `Application.cpp`
+verschwinden.
+
+## Zielprofile
+
+| PlatformIO-Environment | Datenfluss |
+|---|---|
+| `native` | Integrationstests mit Fakes |
+| `esp32dev_analog_serial` | ADC -> Processing -> Serial CSV |
+| `esp32dev_i2c_serial` | AHT20/BMP280 -> Serial CSV |
+| `esp32dev_espnow_client` | Sensoren -> Processing -> Serial + ESP-NOW |
+| `esp32dev_espnow_server` | ESP-NOW Empfang -> Serial |
+| `esp32dev_test` | Embedded-Smoke |
+
+## Zielverdrahtung mit `MeasurementNode`
+
+```cpp
+void Application::begin() {
+    Serial.begin(board::kSerialBaudRate);
+    profile_.configure(node_);
+    const mea::Status status = node_.begin(millis());
+    healthy_ = status.ok();
+}
+
+void Application::update(mea::TimestampMs nowMs) {
+    if (healthy_) {
+        (void)node_.update(nowMs);
+    }
+}
+```
+
+Ein Profil beschreibt dann die eigentliche Pipeline:
+
+```cpp
+node.setReporter(&Application::reportStatus);
+node.setDefaultTuning({1000, 2000, 500, {250, 3}, true});
+
+node.addDevice(serialTransport);
+node.addPipeline(ids::SoilVoltagePipeline, analogSensor)
+    .through(rawToVoltage, voltageClamp)
+    .into(serialSink);
+```
+
+## Ziel-Datenfluesse
+
+Analog + Serial:
 
 ```mermaid
 flowchart LR
-    GPIO[GPIO 34<br/>ADC1_CH6]
-    Sensor[AnalogInputSensor<br/>ID 100]
-    Raw[RawAnalog / RawCount]
-    Linear[LinearProcessor<br/>ID 200]
-    Volt[Voltage / Volt]
-    Clamp[ClampProcessor<br/>ID 201]
-    Sink[BufferedMeasurementSink<br/>ID 300]
-    CSV[CsvMeasurementEncoder]
-    Serial[Serial 115200]
+    ADC[GPIO ADC]
+    Sensor[AnalogInputSensor]
+    Linear[LinearProcessor]
+    Clamp[ClampProcessor]
+    SerialSink[BufferedMeasurementSink]
+    Serial[Serial CSV]
 
-    GPIO --> Sensor --> Raw --> Linear --> Volt --> Clamp --> Sink --> CSV --> Serial
+    ADC --> Sensor --> Linear --> Clamp --> SerialSink --> Serial
 ```
 
-CSV-Format:
-
-```text
-version;source_id;kind;unit;value;sampled_at_ms;sequence;quality
-```
-
-Beispiel:
-
-```text
-1;100;2;2;1.650;12345;42;0
-```
-
-## Zentrale Dateien
-
-| Datei | Rolle |
-|---|---|
-| [platformio.ini](platformio.ini) | PlatformIO-Umgebungen, lokale Library-Abhaengigkeiten |
-| [include/BoardConfig.h](include/BoardConfig.h) | Board-spezifische Werte: Pin, ADC-Maximalwert, Referenzspannung, Baudrate |
-| [include/AppConfig.h](include/AppConfig.h) | Sampling, Verarbeitung, Queue-Groessen, Pipeline-Timeouts, Retry |
-| [include/AppIds.h](include/AppIds.h) | stabile Komponenten-IDs |
-| [src/Application.h](src/Application.h) | Application-Klasse und statisch lebende Komponenten |
-| [src/Application.cpp](src/Application.cpp) | Registrierung, Initialisierung, PipelineConfig, Update-Reihenfolge |
-| [src/main.cpp](src/main.cpp) | Arduino `setup()` und `loop()` |
-| [docs/wiring.md](docs/wiring.md) | Verdrahtung des Demo-Aufbaus |
-| [docs/runtime.md](docs/runtime.md) | Laufzeitverhalten und RAM-relevante Puffer |
-
-## Konfiguration
-
-### Board
-
-[include/BoardConfig.h](include/BoardConfig.h):
-
-```cpp
-constexpr std::uint8_t kAnalogInputPin = 34;
-constexpr std::uint32_t kAdcMaximumRaw = 4095;
-constexpr float kAdcReferenceVolt = 3.3F;
-constexpr std::uint32_t kSerialBaudRate = 115200;
-```
-
-Hier wird angepasst, wenn ein anderes Board, ein anderer ADC-Pin oder eine
-andere serielle Geschwindigkeit verwendet wird.
-
-### Anwendung
-
-[include/AppConfig.h](include/AppConfig.h):
-
-```cpp
-constexpr mea::TimestampMs kSensorSampleIntervalMs = 250;
-constexpr std::uint16_t kSamplesPerMeasurement = 8;
-constexpr std::uint8_t kMaxSamplesPerUpdate = 2;
-constexpr mea::TimestampMs kPipelineCycleIntervalMs = 1000;
-constexpr mea::RetryPolicy kRetryPolicy{250, 3};
-```
-
-Hier liegen die Parameter, die das Laufzeitverhalten bestimmen: Messrate,
-Oversampling, Puffer, Timeouts und Retry-Verhalten.
-
-### IDs
-
-[include/AppIds.h](include/AppIds.h):
-
-| ID | Komponente |
-|---:|---|
-| `100` | `AnalogInput1` |
-| `200` | `RawToVoltage` |
-| `201` | `VoltageClamp` |
-| `300` | `SerialOutput` |
-| `400` | `MeasurementPipeline` |
-
-ID `0` ist reserviert und darf nicht registriert werden.
-
-## Initialisierung
+I2C + Serial:
 
 ```mermaid
-sequenceDiagram
-    participant Arduino as setup()
-    participant App as Application
-    participant Managers as Manager
-    participant Transport as Serial Transport
-    participant Pipeline as Pipeline
+flowchart LR
+    I2C[Wire]
+    AHT[AHT20 Device]
+    BMP[BMP280 Device]
+    Sources[Temperatur / Feuchte / Druck Sources]
+    Sink[Serial Sink]
 
-    Arduino->>App: begin()
-    App->>Managers: registerComponent(...)
-    App->>Transport: begin()
-    App->>Managers: beginAll()
-    App->>Pipeline: begin(millis())
-    Arduino->>App: update(millis()) in loop()
+    I2C --> AHT --> Sources --> Sink
+    I2C --> BMP --> Sources
 ```
 
-Die Reihenfolge ist wichtig: Erst registrieren, dann Transport und Komponenten
-initialisieren, dann die Pipeline starten. Die Pipeline loest in `begin()` nur
-IDs auf; sie initialisiert keine Manager.
+ESP-NOW:
 
-## Laufzeit
+```mermaid
+flowchart LR
+    SensorNode[Sensor Node]
+    EspSink[EspNowMeasurementSink]
+    Wireless[ESP-NOW]
+    Server[Server Profile]
+    Serial[Serial Monitor]
 
-[src/main.cpp](src/main.cpp) ruft nur:
-
-```cpp
-application.update(millis());
+    SensorNode --> EspSink --> Wireless --> Server --> Serial
 ```
 
-In [src/Application.cpp](src/Application.cpp) passiert dann:
+## IDs
 
-1. `sources_.updateAll(nowMs)` sammelt Sensorwerte.
-2. `serialTransport_.update(nowMs)` treibt den Transport.
-3. `sinks_.updateAll(nowMs)` schreibt gepufferte Frames weiter.
-4. `pipeline_.update(nowMs)` liest, verarbeitet und veroeffentlicht Messwerte.
+Empfohlene Bereiche:
 
-Keine Library verwendet `delay()` in der zyklischen Verarbeitung.
-
-## Befehle
-
-```bash
-pio test -e native
-pio run -e esp32dev
-pio run -e esp32dev -t upload
-pio device monitor -b 115200
-```
-
-Weitere Umgebungen:
-
-| Umgebung | Zweck |
+| Bereich | Zweck |
 |---|---|
-| `native` | Integrationstest auf dem PC mit Fakes |
-| `native_debug` | Debug-Variante der nativen Tests |
-| `esp32dev` | Firmware-Build fuer ESP32 DevKit |
-| `esp32dev_test` | Embedded-Smoke-Test |
-| `esp32dev_release` | Release-Build mit `NDEBUG` |
+| 100-199 | Sources |
+| 200-299 | Processors |
+| 300-399 | Sinks |
+| 400-499 | Pipelines |
+| 500-599 | Devices |
+| 600-699 | Command Sources |
+| 700-799 | Command Handlers |
 
-## Verdrahtung
-
-Ein analoges Signal zwischen GND und der zulaessigen ADC-Eingangsspannung des
-konkreten Boards an GPIO 34 anschliessen.
-
-```text
-Spannungsquelle 0 ... 3.3 V  -> GPIO 34
-GND der Quelle               -> GND ESP32
-```
-
-Details und Poti-Beispiel: [docs/wiring.md](docs/wiring.md)
+IDs liegen nur in [include/AppIds.h](include/AppIds.h). Libraries definieren
+keine App-IDs.
 
 ## Lokale Libraries
 
-Die Firmware nutzt lokale Symlinks:
+Ziel-`lib_deps`:
 
 ```ini
 lib_deps =
     mea-core=symlink://../mea-core
-    mea-processing=symlink://../mea-processing
     mea-managers=symlink://../mea-managers
     mea-state-machine=symlink://../mea-state-machine
+    mea-runtime=symlink://../mea-runtime
+    mea-processing=symlink://../mea-processing
     mea-device-analog-input=symlink://../mea-device-analog-input
+    mea-device-aht20=symlink://../mea-device-aht20
+    mea-device-bmp280=symlink://../mea-device-bmp280
     mea-communication=symlink://../mea-communication
+    mea-espnow=symlink://../mea-espnow
 ```
 
-Das ist fuer Entwicklung gewollt: Aenderungen in einer Library sind sofort im
-Firmware-Build sichtbar. Fuer Releases sollten Git-Tags oder Commit-Hashes
-gepinnt werden.
+Fuer Releases werden diese lokalen Symlinks durch Git-Tags oder Commit-Hashes
+ersetzt.
 
-## Typische Aenderungen
+## Befehle im Zielstand
 
-### Anderer ADC-Pin
+```bash
+pio test -e native
+pio run -e esp32dev_analog_serial
+pio run -e esp32dev_i2c_serial
+pio run -e esp32dev_espnow_client
+pio run -e esp32dev_espnow_server
+pio test -e esp32dev_test --without-uploading --without-testing
+```
 
-1. `kAnalogInputPin` in [include/BoardConfig.h](include/BoardConfig.h) aendern.
-2. Verdrahtung anpassen.
-3. `pio run -e esp32dev` ausfuehren.
+Upload eines Profils:
 
-### Andere Messrate
+```bash
+pio run -e esp32dev_analog_serial -t upload
+pio device monitor -b 115200
+```
 
-1. `kSensorSampleIntervalMs` in [include/AppConfig.h](include/AppConfig.h) anpassen.
-2. Bei Bedarf `kPipelineCycleIntervalMs` anpassen.
-3. Native Test und Firmware-Build ausfuehren.
+## Umbauaufgaben in diesem Repo
 
-### Weiterer Prozessor
-
-1. Prozessor als Member in [src/Application.h](src/Application.h) aufnehmen.
-2. ID in [include/AppIds.h](include/AppIds.h) vergeben.
-3. In [src/Application.cpp](src/Application.cpp) registrieren.
-4. ID in `kProcessorIds[]` einfuegen.
-
-### Weiterer Sink
-
-1. Sink als Member aufnehmen.
-2. ID vergeben.
-3. Sink registrieren.
-4. ID in `kSinkIds[]` aufnehmen.
-5. Kapazitaeten in [include/AppConfig.h](include/AppConfig.h) pruefen.
+1. `mea-runtime` in `platformio.ini` einbinden.
+2. `Application` auf `MeasurementNode` umstellen.
+3. Profile unter `include/profiles/` anlegen.
+4. AHT20/BMP280-Profile verdrahten.
+5. ESP-NOW Client- und Server-Profile verdrahten.
+6. Native Integrationstests pro Profil ergaenzen.
+7. Embedded-Smoke-Builds pro Profil absichern.
 
 ## Weiterfuehrende Doku
 
-- [../../docs/00-VERWENDUNG-UND-KONFIGURATION.md](../../docs/00-VERWENDUNG-UND-KONFIGURATION.md)
+- [../../docs/08-UMBAUPLAN-MODULARE-EINHEIT.md](../../docs/08-UMBAUPLAN-MODULARE-EINHEIT.md)
 - [../../docs/02-ARCHITEKTUR.md](../../docs/02-ARCHITEKTUR.md)
-- [../../docs/07-CODE-TOUR-FUER-TEAMS.md](../../docs/07-CODE-TOUR-FUER-TEAMS.md)
+- [../../docs/05-NEUE-LIBRARY-ANLEGEN.md](../../docs/05-NEUE-LIBRARY-ANLEGEN.md)
+- [docs/wiring.md](docs/wiring.md)
+- [docs/runtime.md](docs/runtime.md)

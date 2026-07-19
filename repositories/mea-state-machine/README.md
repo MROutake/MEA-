@@ -1,49 +1,39 @@
 # MEA State Machine
 
 `mea-state-machine` enthaelt die nicht blockierende
-`MeasurementPipelineMachine`. Sie verbindet eine registrierte Messquelle, eine
-geordnete Prozessorkette und eine oder mehrere Ausgaben ueber Komponenten-IDs.
+`MeasurementPipelineMachine`. Sie fuehrt eine Messwert-Pipeline aus:
+Quelle -> Prozessorkette -> ein oder mehrere Sinks.
 
-Die State Machine kennt keine konkreten Sensor-, Prozessor- oder Sink-Klassen.
-Sie spricht nur mit Interfaces aus `mea-core` und Locators aus den Managern.
+Zielstand nach Umbauplan:
+[../../docs/08-UMBAUPLAN-MODULARE-EINHEIT.md](../../docs/08-UMBAUPLAN-MODULARE-EINHEIT.md).
 
-## Wofuer diese Library gedacht ist
-
-Nutze diese Library, wenn du:
-
-- einen zyklischen Messwertfluss koordinieren willst,
-- Backpressure und Timeouts sauber behandeln willst,
-- Quellen, Prozessoren und Sinks austauschbar halten willst,
-- keine blockierenden `delay()`-Ablaufe in der Firmware willst.
+## Rolle im Zielsystem
 
 ```mermaid
 flowchart LR
-    Source[Source ID]
-    P1[Processor ID 1]
-    P2[Processor ID 2]
-    Sink[Sink ID]
+    Runtime[mea-runtime]
     Machine[MeasurementPipelineMachine]
+    Sources[Source Locator]
+    Processors[Processor Locator]
+    Sinks[Sink Locator]
 
-    Source --> Machine
-    P1 --> Machine
-    P2 --> Machine
-    Sink --> Machine
+    Runtime --> Machine
+    Machine --> Sources
+    Machine --> Processors
+    Machine --> Sinks
 ```
 
-## Abhaengigkeiten
-
-| Dependency | Warum |
-|---|---|
-| [../mea-core](../mea-core) | Interfaces, `PipelineConfig`-Bausteine, `Status`, `Measurement` |
-| [../mea-managers](../mea-managers) | Locator-Implementierungen fuer registrierte Komponenten |
+Die State Machine kennt keine konkreten Sensoren, Prozessoren oder Ausgaben.
+Sie sieht nur IDs und Locator-Interfaces. Im Zielzustand wird sie meistens
+ueber `MeasurementNode` genutzt, nicht direkt aus der Firmware.
 
 ## Zentrale Dateien
 
-| Datei | Rolle |
+| Datei | Verantwortung |
 |---|---|
 | [src/MeaStateMachine.h](src/MeaStateMachine.h) | Sammel-Header |
 | [src/mea/state/PipelineTypes.h](src/mea/state/PipelineTypes.h) | `PipelineConfig`, `RetryPolicy`, `PipelineState` |
-| [src/mea/state/MeasurementPipelineMachine.h](src/mea/state/MeasurementPipelineMachine.h) | oeffentliche State-Machine-API |
+| [src/mea/state/MeasurementPipelineMachine.h](src/mea/state/MeasurementPipelineMachine.h) | API |
 | [src/mea/state/MeasurementPipelineMachine.cpp](src/mea/state/MeasurementPipelineMachine.cpp) | Zustandslogik |
 
 ## Zustandsmodell
@@ -51,111 +41,60 @@ flowchart LR
 ```mermaid
 stateDiagram-v2
     [*] --> Uninitialized
-    Uninitialized --> WaitingForCycle: begin() + startImmediately
-    Uninitialized --> Disabled: begin() + startImmediately=false
+    Uninitialized --> WaitingForCycle: begin()
+    Uninitialized --> Disabled: begin(startImmediately=false)
     Disabled --> WaitingForCycle: enable()
-    WaitingForCycle --> WaitingForMeasurement: interval elapsed
-    WaitingForMeasurement --> Processing: source read ok
-    WaitingForMeasurement --> RetryDelay: timeout
-    Processing --> Publishing: processors ok
-    Processing --> RetryDelay: processor error
-    Publishing --> WaitingForCycle: all sinks accepted
-    Publishing --> Backpressure: sink WouldBlock
-    Backpressure --> Publishing: next update
-    Publishing --> RetryDelay: publish timeout
-    RetryDelay --> WaitingForMeasurement: acquire retry
-    RetryDelay --> Publishing: publish retry
+    WaitingForCycle --> WaitingForMeasurement: Intervall faellig
+    WaitingForMeasurement --> Processing: read ok
+    WaitingForMeasurement --> RetryDelay: Timeout
+    Processing --> Publishing: process ok
+    Processing --> RetryDelay: Fehler
+    Publishing --> WaitingForCycle: alle Sinks akzeptiert
+    Publishing --> Backpressure: WouldBlock
+    Backpressure --> Publishing: naechstes update
+    Publishing --> RetryDelay: Publish-Timeout
+    RetryDelay --> WaitingForMeasurement: Retry Acquire
+    RetryDelay --> Publishing: Retry Publish
     WaitingForMeasurement --> Fault: fatal
     Processing --> Fault: fatal
     Publishing --> Fault: fatal
 ```
 
-`Fault` ist sticky und wird nur durch ein explizites neues `begin(nowMs)`
-verlassen. Normale Zyklusfehler fuehren ueber `RetryPolicy` zu Wiederholungen
-und stoppen die Pipeline nicht dauerhaft.
-
-## PipelineConfig
+## Zielnutzung ueber Runtime
 
 ```cpp
-constexpr mea::ComponentId processorIds[] = {200, 201};
-constexpr mea::ComponentId sinkIds[] = {300};
+node.setDefaultTuning({1000, 2000, 500, {250, 3}, true});
 
-mea::PipelineConfig cfg{};
-cfg.pipelineId = 400;
-cfg.sourceId = 100;
-cfg.processorIds = mea::ArrayView<const mea::ComponentId>(processorIds, 2);
-cfg.sinkIds = mea::ArrayView<const mea::ComponentId>(sinkIds, 1);
-cfg.cycleIntervalMs = 1000;
-cfg.acquisitionTimeoutMs = 2000;
-cfg.publishTimeoutMs = 500;
-cfg.retry = mea::RetryPolicy{250, 3};
-cfg.startImmediately = true;
+node.addPipeline(ids::SoilVoltagePipeline, analogSensor)
+    .through(rawToVoltage, voltageClamp)
+    .into(serialSink, espNowSink);
 ```
 
-Die ID-Arrays muessen laenger leben als die State Machine. In der Demo liegen
-sie deshalb statisch in [../mea-demo-firmware/src/Application.cpp](../mea-demo-firmware/src/Application.cpp).
-
-## Update-Arbeit
-
-Pro `update(nowMs)` passiert hoechstens ein Zustandsuebergang plus begrenzte
-Arbeit des aktuellen Zustands:
-
-- `WaitingForMeasurement`: prueft `available()` und liest maximal einen Wert.
-- `Processing`: fuehrt die konfigurationsbegrenzte Prozessorkette aus.
-- `Publishing`: versucht jeden noch ausstehenden Sink genau einmal.
-- `Backpressure`: wartet nicht aktiv, sondern versucht im naechsten Update neu.
-
-## Beispiel
+Direktnutzung bleibt fuer Tests und Spezialfaelle moeglich:
 
 ```cpp
-#include <MeaStateMachine.h>
-
-mea::MeasurementPipelineMachine pipeline(sources, processors, sinks, cfg);
-
-pipeline.begin(millis());
-
-void loop() {
-    const mea::TimestampMs now = millis();
-    sources.updateAll(now);
-    sinks.updateAll(now);
-    pipeline.update(now);
-}
+mea::MeasurementPipelineMachine machine(sources, processors, sinks, cfg);
+machine.begin(nowMs);
+machine.update(nowMs);
 ```
 
-Die State Machine ruft `sources.updateAll()` und `sinks.updateAll()` bewusst
-nicht selbst auf. Der Composition Root bestimmt die Reihenfolge.
+## Regeln
 
-## Beobachtbarkeit
+1. Die Maschine initialisiert keine Komponenten.
+2. Pro `update()` wird nur begrenzte Arbeit erledigt.
+3. Backpressure blockiert nicht die Loop.
+4. Fatal errors fuehren in `Fault`.
+5. Normale Zyklusfehler laufen ueber `RetryPolicy`.
 
-| Methode | Bedeutung |
+## Abhaengigkeiten
+
+| Dependency | Warum |
 |---|---|
-| `state()` | aktueller Pipeline-Zustand |
-| `lastStatus()` | letzter relevanter Status |
-| `completedCycles()` | erfolgreich veroeffentlichte Zyklen |
-| `failedCycles()` | abgeschriebene Zyklen |
-| `droppedMeasurements()` | Werte, die beim Publizieren verloren gingen |
-| `lastMeasurement()` | letzter fertig verarbeiteter Wert |
-
-## Standalone-Nutzung
-
-```ini
-lib_deps =
-    mea-core=symlink://../mea-core
-    mea-managers=symlink://../mea-managers
-    mea-state-machine=symlink://../mea-state-machine
-```
-
-```cpp
-#include <MeaStateMachine.h>
-```
+| [../mea-core](../mea-core) | Interfaces, `Measurement`, `Status`, Zeittypen |
+| [../mea-managers](../mea-managers) | Locator-Implementierung |
 
 ## Testen
 
 ```bash
 pio test -e native
 ```
-
-## Design-Referenzen
-
-- [../../docs/adr/0005-state-machine-execution.md](../../docs/adr/0005-state-machine-execution.md)
-- [../../docs/adr/0004-component-lifecycle.md](../../docs/adr/0004-component-lifecycle.md)

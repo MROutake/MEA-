@@ -46,3 +46,11 @@ eingeschränkten Wert liefern (z. B. `Stale` oder `OutOfRange`).
 - Das CSV-Format (ADR 0006) transportiert `quality` als numerisches Feld.
 - Prozessoren wie `RangeValidationProcessor` melden Bereichsverletzungen über
   Qualitätsflags statt über Fehlerstatus.
+
+## Erweiterungen
+
+- 2026-07-19: `MeasurementKind::SoilMoisture` und `Unit::Hectopascal` ergänzt
+  (Sensor-Node: kapazitiver Bodenfeuchtesensor, BMP280-Luftdruck in hPa).
+  Regel: Beide Enums werden ausschließlich durch **Anhängen** erweitert, damit
+  die numerischen Codes im CSV-Protokoll stabil bleiben; `kFormatVersion`
+  bleibt dadurch unverändert.

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/platformio/platformio-core/develop/platformio/assets/schema/library.json",
+  "name": "MEA AHT20 Device",
+  "version": "0.2.0",
+  "description": "Nicht blockierende AHT20-Messquelle (Temperatur und Luftfeuchte) ueber I2C",
+  "keywords": ["arduino", "i2c", "aht20", "temperature", "humidity", "measurement"],
+  "authors": [{ "name": "Theo Anders" }],
+  "license": "MIT",
+  "frameworks": "*",
+  "platforms": "*",
+  "headers": ["MeaAht20.h"]
+}

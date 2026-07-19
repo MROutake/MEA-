@@ -1,56 +1,53 @@
 # MEA Communication
 
-`mea-communication` enthaelt die Kommunikationsschicht fuer MEA-Messwerte und
-vorbereitete eingehende Kommandos. Die Library trennt Transport, Kodierung und
-Sink-Logik, damit Arduino-Abhaengigkeit, CSV-Format und Backpressure getrennt
-testbar bleiben.
+`mea-communication` ist die kabelgebundene Kommunikationsschicht der
+MEA-Plattform. Sie trennt Transport, Kodierung, Sink-Verhalten und vorbereitete
+eingehende Kommandos.
 
-## Wofuer diese Library gedacht ist
+Zielstand nach Umbauplan:
+[../../docs/08-UMBAUPLAN-MODULARE-EINHEIT.md](../../docs/08-UMBAUPLAN-MODULARE-EINHEIT.md).
 
-Nutze diese Library, wenn du:
-
-- `mea::Measurement` als CSV ausgeben willst,
-- einen nicht blockierenden Sink mit fester Queue brauchst,
-- einen Byte-Transport abstrahieren willst,
-- spaeter einfache zeilenbasierte Kommandos empfangen willst.
-
-## Schichten
+## Rolle im Zielsystem
 
 ```mermaid
 flowchart LR
     Measurement[Measurement]
-    Sink[BufferedMeasurementSink<br/>Queue + Backpressure]
-    Encoder[CsvMeasurementEncoder<br/>Format v1]
+    Sink[BufferedMeasurementSink]
+    Encoder[CsvMeasurementEncoder / TextMeasurementEncoder]
     Transport[IByteTransport]
-    Serial[ArduinoStreamTransport<br/>Serial/Stream]
+    Serial[ArduinoStreamTransport]
+    Decoder[LineCommandDecoder]
 
-    Measurement --> Sink
-    Sink --> Encoder
-    Sink --> Transport
-    Transport --> Serial
+    Measurement --> Sink --> Encoder
+    Sink --> Transport --> Serial
+    Serial --> Transport --> Decoder
 ```
 
-## Abhaengigkeiten
+## Zielnutzung mit Runtime
 
-| Dependency | Warum |
-|---|---|
-| [../mea-core](../mea-core) | `Measurement`, `Status`, `IMeasurementSink`, `Command` |
+```cpp
+mea::ArduinoStreamTransport serialTransport(Serial);
+mea::CsvMeasurementEncoder csv({';', 3});
+mea::BufferedMeasurementSink<8, 96> serialSink(
+    serialTransport,
+    csv,
+    ids::SerialOutput);
 
-Nur `ArduinoStreamTransport` benoetigt Arduino. Encoder, Sink und
-`LineCommandDecoder` sind nativ testbar.
+node.addDevice(serialTransport);
+node.addPipeline(ids::SoilVoltagePipeline, analogSensor)
+    .through(rawToVoltage, voltageClamp)
+    .into(serialSink);
+```
 
-## Zentrale Dateien
+## Schichten
 
-| Datei | Rolle |
-|---|---|
-| [src/MeaCommunication.h](src/MeaCommunication.h) | Sammel-Header |
-| [src/mea/communication/IByteTransport.h](src/mea/communication/IByteTransport.h) | nicht blockierender Byte-Transport |
-| [src/mea/communication/ArduinoStreamTransport.h](src/mea/communication/ArduinoStreamTransport.h) | Arduino-`Stream` als Transport |
-| [src/mea/communication/IMeasurementEncoder.h](src/mea/communication/IMeasurementEncoder.h) | Encoder-Interface |
-| [src/mea/communication/CsvMeasurementEncoder.h](src/mea/communication/CsvMeasurementEncoder.h) | CSV-Encoder |
-| [src/mea/communication/BufferedMeasurementSink.h](src/mea/communication/BufferedMeasurementSink.h) | gepufferter Sink mit Backpressure |
-| [src/mea/communication/LineCommandDecoder.h](src/mea/communication/LineCommandDecoder.h) | zeilenbasierter Command-Decoder |
-| [src/mea/communication/testing/FakeByteTransport.h](src/mea/communication/testing/FakeByteTransport.h) | Fake fuer native Tests |
+| Schicht | Typ | Aufgabe |
+|---|---|---|
+| Transport | `IByteTransport` | Bytes lesen/schreiben, nicht blockierend |
+| Arduino-Adapter | `ArduinoStreamTransport` | `Serial` oder anderer Arduino-`Stream` |
+| Encoder | `IMeasurementEncoder` | `Measurement` in Bytes wandeln |
+| Ausgabe | `BufferedMeasurementSink` | Queue, Backpressure, partielles Schreiben |
+| Eingang | `LineCommandDecoder` | zeilenbasierte Kommandos vorbereiten |
 
 ## CSV-Format
 
@@ -64,71 +61,43 @@ Beispiel:
 1;100;2;2;1.650;12345;42;0
 ```
 
-`kind`, `unit` und `quality` werden numerisch geschrieben. Das erste Feld ist
-die Formatversion, damit Parser spaeter sauber migriert werden koennen.
+Das Format ist bewusst numerisch und versionsmarkiert, damit kleine Empfaenger
+es einfach parsen koennen.
 
-## Backpressure
+## Backpressure-Regel
 
-```mermaid
-stateDiagram-v2
-    [*] --> Empty
-    Empty --> Queued: submit(measurement)
-    Queued --> Encoding: update()
-    Encoding --> Writing: encode ok
-    Writing --> Writing: partial write
-    Writing --> Empty: frame sent
-    Queued --> Backpressure: queue full / submit WouldBlock
-```
+`BufferedMeasurementSink::submit()` darf `WouldBlock` liefern, wenn die Queue
+voll ist. Der Wert wird dann nicht uebernommen. Die State Machine entscheidet
+ueber Retry und Timeout.
 
-Wenn die Queue voll ist, gibt `submit()` `WouldBlock` zurueck. Der Wert wird
-nicht still verworfen. Die Pipeline kann darauf mit Retry und Timeout reagieren.
+## Command-Zielstand
 
-## Standalone-Nutzung
+`LineCommandDecoder` soll im Runtime-Refactor als `ICommandSource` verdrahtet
+werden. Dadurch kann die Demo spaeter Kommandos wie Statusausgabe,
+Pipeline-Aktivierung oder Profilsteuerung empfangen, ohne die Messpipeline zu
+vermischen.
 
-```ini
-lib_deps =
-    mea-core=symlink://../mea-core
-    mea-communication=symlink://../mea-communication
-```
+## Zentrale Dateien
 
-```cpp
-#include <MeaCommunication.h>
+| Datei | Verantwortung |
+|---|---|
+| [src/MeaCommunication.h](src/MeaCommunication.h) | Sammel-Header |
+| [src/mea/communication/IByteTransport.h](src/mea/communication/IByteTransport.h) | Transport-Interface |
+| [src/mea/communication/ArduinoStreamTransport.h](src/mea/communication/ArduinoStreamTransport.h) | Arduino-Transport |
+| [src/mea/communication/IMeasurementEncoder.h](src/mea/communication/IMeasurementEncoder.h) | Encoder-Interface |
+| [src/mea/communication/CsvMeasurementEncoder.h](src/mea/communication/CsvMeasurementEncoder.h) | maschinenlesbares CSV |
+| [src/mea/communication/TextMeasurementEncoder.h](src/mea/communication/TextMeasurementEncoder.h) | menschenlesbarer Text |
+| [src/mea/communication/BufferedMeasurementSink.h](src/mea/communication/BufferedMeasurementSink.h) | gepufferter Sink |
+| [src/mea/communication/LineCommandDecoder.h](src/mea/communication/LineCommandDecoder.h) | Command-Eingang |
 
-mea::ArduinoStreamTransport transport(Serial);
-mea::CsvMeasurementEncoder encoder({';', 3});
-mea::BufferedMeasurementSink<8, 96> sink(transport, encoder, 300);
+## Abhaengigkeiten
 
-transport.begin();
-sink.begin();
-sink.submit(measurement);
-sink.update(millis());
-```
-
-## Eingehende Kommandos
-
-`LineCommandDecoder` ist vorbereitet, aber in der Demo-Firmware noch nicht
-verdrahtet. Format:
-
-```text
-target_id;command_type;argument
-```
-
-Beispiel:
-
-```text
-100;1;0
-```
-
-Ungueltige oder zu lange Zeilen werden verworfen und ueber
-`protocolErrors()` sichtbar.
+| Dependency | Warum |
+|---|---|
+| [../mea-core](../mea-core) | `Measurement`, `Status`, Sink- und Command-Interfaces |
 
 ## Testen
 
 ```bash
 pio test -e native
 ```
-
-## Design-Referenzen
-
-- [../../docs/adr/0006-communication-layering.md](../../docs/adr/0006-communication-layering.md)
-- [../../docs/adr/0002-status-and-error-model.md](../../docs/adr/0002-status-and-error-model.md)

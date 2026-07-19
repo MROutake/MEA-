@@ -1,65 +1,43 @@
 # MEA Processing
 
-`mea-processing` enthaelt hardwareunabhaengige Messwertverarbeitung. Die
-Library arbeitet ausschliesslich mit `mea::Measurement` und implementiert
-`mea::IMeasurementProcessor` aus `mea-core`.
+`mea-processing` enthaelt hardwarefreie Messwertverarbeitung. Die Library kennt
+nur `mea::Measurement`, `mea::Status` und `mea::IMeasurementProcessor` aus
+`mea-core`.
 
-## Wofuer diese Library gedacht ist
+Zielstand nach Umbauplan:
+[../../docs/08-UMBAUPLAN-MODULARE-EINHEIT.md](../../docs/08-UMBAUPLAN-MODULARE-EINHEIT.md).
 
-Nutze `mea-processing`, wenn Messwerte:
-
-- skaliert oder in eine andere Einheit ueberfuehrt werden sollen,
-- geglaettet werden sollen,
-- validiert oder begrenzt werden sollen,
-- in Tests ohne Hardware durch eine echte Prozessorkette laufen sollen.
+## Rolle im Zielsystem
 
 ```mermaid
 flowchart LR
-    Input[Measurement input]
-    P1[Processor 1]
-    P2[Processor 2]
-    P3[Processor n]
-    Output[Measurement output]
+    Source[Source]
+    P1[LinearProcessor]
+    P2[Clamp/Range/MovingAverage]
+    Sink[Sink]
 
-    Input --> P1 --> P2 --> P3 --> Output
+    Source --> P1 --> P2 --> Sink
 ```
 
-## Abhaengigkeiten
-
-| Dependency | Warum |
-|---|---|
-| [../mea-core](../mea-core) | `Measurement`, `Status`, `IMeasurementProcessor`, Quality-Flags |
-
-Die Library hat keine Arduino-Abhaengigkeit.
-
-## Zentrale Dateien
-
-| Datei | Rolle |
-|---|---|
-| [src/MeaProcessing.h](src/MeaProcessing.h) | Sammel-Header |
-| [src/mea/processing/LinearProcessor.h](src/mea/processing/LinearProcessor.h) | lineare Umrechnung `value' = value * gain + offset` |
-| [src/mea/processing/ClampProcessor.h](src/mea/processing/ClampProcessor.h) | Wert begrenzen und `OutOfRange` setzen |
-| [src/mea/processing/RangeValidationProcessor.h](src/mea/processing/RangeValidationProcessor.h) | Wertebereich pruefen, Wert unveraendert lassen |
-| [src/mea/processing/MovingAverageProcessor.h](src/mea/processing/MovingAverageProcessor.h) | gleitender Mittelwert mit fester Fensterlaenge |
-| [src/mea/processing/PassThroughProcessor.h](src/mea/processing/PassThroughProcessor.h) | neutrales Kettenglied fuer Tests oder Platzhalter |
+Processing ist bewusst fachlich, aber nicht hardwarebezogen. ADC-Rohwerte,
+Temperaturwerte oder Druckwerte koennen verarbeitet werden, ohne dass diese
+Library weiss, von welchem Sensor sie kommen.
 
 ## Prozessoren
 
-| Prozessor | Veraendert Wert | Veraendert Kind/Einheit | Quality-Flags |
-|---|---:|---:|---|
-| `LinearProcessor` | ja | ja, explizit konfiguriert | uebernimmt bestehende Flags |
-| `ClampProcessor` | ja, wenn ausserhalb Bereich | nein | setzt `OutOfRange` |
-| `RangeValidationProcessor` | nein | nein | setzt `OutOfRange` |
-| `MovingAverageProcessor<N>` | ja | nein | setzt `Estimated`, bis Fenster voll ist |
-| `PassThroughProcessor` | nein | nein | uebernimmt bestehende Flags |
+| Prozessor | Zweck |
+|---|---|
+| `PassThroughProcessor` | unveraenderter Durchlauf fuer Tests oder Platzhalter |
+| `LinearProcessor` | lineare Umrechnung, z. B. Rohwert -> Volt oder Pa -> hPa |
+| `ClampProcessor` | Wert begrenzen und `QualityFlag::OutOfRange` setzen |
+| `RangeValidationProcessor` | Wertebereich markieren, Wert unveraendert lassen |
+| `MovingAverageProcessor<N>` | gleitender Mittelwert ohne Heap |
 
-## Beispiel: ADC-Rohwert zu Volt
+## Zielnutzung mit Runtime
 
 ```cpp
-#include <MeaProcessing.h>
-
 mea::LinearProcessor rawToVoltage({
-    200,
+    ids::RawToVoltage,
     3.3F / 4095.0F,
     0.0F,
     mea::MeasurementKind::RawAnalog,
@@ -69,58 +47,46 @@ mea::LinearProcessor rawToVoltage({
 });
 
 mea::ClampProcessor voltageClamp({
-    201,
+    ids::VoltageClamp,
     0.0F,
     3.3F,
     mea::MeasurementKind::Voltage,
     mea::Unit::Volt,
 });
+
+node.addPipeline(ids::SoilVoltagePipeline, analogSensor)
+    .through(rawToVoltage, voltageClamp)
+    .into(serialSink);
 ```
 
-Aufruffolge:
+## Regeln fuer neue Prozessoren
 
-```cpp
-rawToVoltage.begin();
-voltageClamp.begin();
+1. `IMeasurementProcessor` implementieren.
+2. Eingabe nie veraendern, Ergebnis in `output` schreiben.
+3. `accepts(kind, unit)` konsequent nutzen.
+4. Operationserfolg ueber `Status` melden.
+5. Fachliche Einschraenkungen ueber `Measurement::quality` markieren.
+6. Keine Arduino- oder Board-Abhaengigkeit einfuehren.
 
-mea::Measurement raw{};
-mea::Measurement voltage{};
-mea::Measurement safeVoltage{};
+## Zentrale Dateien
 
-rawToVoltage.process(raw, voltage);
-voltageClamp.process(voltage, safeVoltage);
-```
+| Datei | Verantwortung |
+|---|---|
+| [src/MeaProcessing.h](src/MeaProcessing.h) | Sammel-Header |
+| [src/mea/processing/PassThroughProcessor.h](src/mea/processing/PassThroughProcessor.h) | neutraler Prozessor |
+| [src/mea/processing/LinearProcessor.h](src/mea/processing/LinearProcessor.h) | lineare Umrechnung |
+| [src/mea/processing/ClampProcessor.h](src/mea/processing/ClampProcessor.h) | Begrenzung |
+| [src/mea/processing/RangeValidationProcessor.h](src/mea/processing/RangeValidationProcessor.h) | Validierung |
+| [src/mea/processing/MovingAverageProcessor.h](src/mea/processing/MovingAverageProcessor.h) | Filter |
 
-## Warum `accepts(kind, unit)` existiert
+## Abhaengigkeiten
 
-Prozessoren sollen keine stillen Einheitenkonvertierungen machen. Ein
-`LinearProcessor`, der `RawAnalog/RawCount` erwartet, soll nicht versehentlich
-einen Temperaturwert verarbeiten. `MeasurementKind::Unknown` und `Unit::None`
-wirken als Wildcard, wenn ein Prozessor bewusst generisch sein soll.
-
-## Standalone-Nutzung
-
-In einem anderen PlatformIO-Projekt:
-
-```ini
-lib_deps =
-    mea-core=symlink://../mea-core
-    mea-processing=symlink://../mea-processing
-```
-
-Dann:
-
-```cpp
-#include <MeaProcessing.h>
-```
+| Dependency | Warum |
+|---|---|
+| [../mea-core](../mea-core) | `Measurement`, `Status`, Processor-Interface |
 
 ## Testen
 
 ```bash
 pio test -e native
 ```
-
-## Design-Referenzen
-
-- [../../docs/adr/0003-measurement-format.md](../../docs/adr/0003-measurement-format.md)
-- [../../docs/adr/0004-component-lifecycle.md](../../docs/adr/0004-component-lifecycle.md)

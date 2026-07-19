@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/platformio/platformio-core/develop/platformio/assets/schema/library.json",
+  "name": "MEA BMP280 Device",
+  "version": "0.2.0",
+  "description": "Nicht blockierende BMP280-Messquelle (Temperatur und Luftdruck) ueber I2C",
+  "keywords": ["arduino", "i2c", "bmp280", "temperature", "pressure", "measurement"],
+  "authors": [{ "name": "Theo Anders" }],
+  "license": "MIT",
+  "frameworks": "*",
+  "platforms": "*",
+  "headers": ["MeaBmp280.h"]
+}

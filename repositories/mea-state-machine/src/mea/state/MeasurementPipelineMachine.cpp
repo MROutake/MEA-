@@ -5,7 +5,22 @@ namespace mea {
 MeasurementPipelineMachine::MeasurementPipelineMachine(
     const ISourceLocator& sources, const IProcessorLocator& processors,
     const ISinkLocator& sinks, const PipelineConfig& config) noexcept
-    : sources_(sources), processors_(processors), sinks_(sinks), config_(config) {}
+    : sources_(&sources), processors_(&processors), sinks_(&sinks), config_(config) {}
+
+Status MeasurementPipelineMachine::configure(const ISourceLocator& sources,
+                                             const IProcessorLocator& processors,
+                                             const ISinkLocator& sinks,
+                                             const PipelineConfig& config) noexcept {
+    sources_ = &sources;
+    processors_ = &processors;
+    sinks_ = &sinks;
+    config_ = config;
+    source_ = nullptr;
+    abandonCycle();
+    state_ = PipelineState::Uninitialized;
+    lastStatus_ = Status{StatusCode::NotInitialized, InvalidComponentId, 0};
+    return okStatus();
+}
 
 // ------------------------------------------------------------ Lebenszyklus
 
@@ -52,19 +67,19 @@ Status MeasurementPipelineMachine::validateConfig() const noexcept {
 }
 
 Status MeasurementPipelineMachine::resolveComponents() noexcept {
-    source_ = sources_.find(config_.sourceId);
+    source_ = sources_->find(config_.sourceId);
     if (source_ == nullptr) {
         return makeStatus(StatusCode::NotFound, config_.pipelineId, config_.sourceId);
     }
     for (std::size_t index = 0; index < config_.processorIds.size(); ++index) {
-        processors_cache_[index] = processors_.find(config_.processorIds[index]);
+        processors_cache_[index] = processors_->find(config_.processorIds[index]);
         if (processors_cache_[index] == nullptr) {
             return makeStatus(StatusCode::NotFound, config_.pipelineId,
                               config_.processorIds[index]);
         }
     }
     for (std::size_t index = 0; index < config_.sinkIds.size(); ++index) {
-        sinks_cache_[index] = sinks_.find(config_.sinkIds[index]);
+        sinks_cache_[index] = sinks_->find(config_.sinkIds[index]);
         if (sinks_cache_[index] == nullptr) {
             return makeStatus(StatusCode::NotFound, config_.pipelineId,
                               config_.sinkIds[index]);
@@ -74,6 +89,11 @@ Status MeasurementPipelineMachine::resolveComponents() noexcept {
 }
 
 Status MeasurementPipelineMachine::begin(const TimestampMs nowMs) noexcept {
+    if (sources_ == nullptr || processors_ == nullptr || sinks_ == nullptr) {
+        // Default-konstruiert und nie konfiguriert (kein Fault: configure()
+        // plus erneutes begin() genügt).
+        return makeStatus(StatusCode::NotInitialized, config_.pipelineId);
+    }
     source_ = nullptr;
 
     Status status = validateConfig();

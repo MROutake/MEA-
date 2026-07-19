@@ -86,6 +86,79 @@ static void test_encoder_quality_flags_are_numeric() {
                              reinterpret_cast<const char*>(buffer));
 }
 
+// ---------------------------------------------------------------- Text-Encoder
+
+namespace {
+
+/// Statische Lebensdauer: das Label-Array muss den Encoder überleben (ADR 0001).
+constexpr mea::TextMeasurementEncoder::SourceLabel kSourceLabels[] = {
+    {100, "boden"},
+};
+
+}  // namespace
+
+static void test_text_encoder_uses_label_and_unit_symbol() {
+    mea::TextMeasurementEncoder::Config config{};
+    config.decimalPlaces = 2;
+    config.labels =
+        mea::ArrayView<const mea::TextMeasurementEncoder::SourceLabel>(kSourceLabels, 1);
+    const mea::TextMeasurementEncoder encoder(config);
+
+    mea::Measurement measurement = sampleMeasurement();  // sourceId 100
+    measurement.kind = mea::MeasurementKind::SoilMoisture;
+    measurement.unit = mea::Unit::Percent;
+    measurement.value = 42.5F;
+
+    std::uint8_t buffer[96] = {};
+    std::size_t encoded = 0;
+    TEST_ASSERT_TRUE(encoder.encode(measurement, buffer, sizeof(buffer), encoded).ok());
+    TEST_ASSERT_EQUAL_STRING("boden: 42.50 % (seq=42, t=12345 ms)\n",
+                             reinterpret_cast<const char*>(buffer));
+    TEST_ASSERT_EQUAL_size_t(std::strlen("boden: 42.50 % (seq=42, t=12345 ms)\n"),
+                             encoded);
+}
+
+static void test_text_encoder_unknown_source_prints_id_and_kind() {
+    const mea::TextMeasurementEncoder encoder;  // keine Labels
+
+    mea::Measurement measurement = sampleMeasurement();
+    measurement.sourceId = 121;
+    measurement.kind = mea::MeasurementKind::Pressure;
+    measurement.unit = mea::Unit::Hectopascal;
+    measurement.value = 991.05F;
+
+    std::uint8_t buffer[96] = {};
+    std::size_t encoded = 0;
+    TEST_ASSERT_TRUE(encoder.encode(measurement, buffer, sizeof(buffer), encoded).ok());
+    TEST_ASSERT_EQUAL_STRING("source 121: 991.05 hPa (Pressure, seq=42, t=12345 ms)\n",
+                             reinterpret_cast<const char*>(buffer));
+}
+
+static void test_text_encoder_quality_flags_are_text() {
+    const mea::TextMeasurementEncoder encoder;
+
+    mea::Measurement measurement = sampleMeasurement();
+    measurement.quality = mea::QualityFlag::Stale | mea::QualityFlag::OutOfRange;
+
+    std::uint8_t buffer[96] = {};
+    std::size_t encoded = 0;
+    TEST_ASSERT_TRUE(encoder.encode(measurement, buffer, sizeof(buffer), encoded).ok());
+    TEST_ASSERT_EQUAL_STRING(
+        "source 100: 1.25 V [Stale|OutOfRange] (Voltage, seq=42, t=12345 ms)\n",
+        reinterpret_cast<const char*>(buffer));
+}
+
+static void test_text_encoder_reports_capacity_exceeded() {
+    const mea::TextMeasurementEncoder encoder;
+    std::uint8_t buffer[8] = {};
+    std::size_t encoded = 0;
+    const mea::Status status =
+        encoder.encode(sampleMeasurement(), buffer, sizeof(buffer), encoded);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<std::uint8_t>(mea::StatusCode::CapacityExceeded),
+                            static_cast<std::uint8_t>(status.code));
+    TEST_ASSERT_EQUAL_size_t(0, encoded);
+}
+
 // ---------------------------------------------------------------- Sink
 
 using TestSink = mea::BufferedMeasurementSink<2, 64>;
@@ -305,6 +378,10 @@ int main(int, char**) {
     RUN_TEST(test_encoder_rejects_non_finite_values);
     RUN_TEST(test_encoder_custom_separator_and_decimals);
     RUN_TEST(test_encoder_quality_flags_are_numeric);
+    RUN_TEST(test_text_encoder_uses_label_and_unit_symbol);
+    RUN_TEST(test_text_encoder_unknown_source_prints_id_and_kind);
+    RUN_TEST(test_text_encoder_quality_flags_are_text);
+    RUN_TEST(test_text_encoder_reports_capacity_exceeded);
     RUN_TEST(test_sink_contract_pre_begin);
     RUN_TEST(test_sink_complete_write);
     RUN_TEST(test_sink_partial_write_resumes);
